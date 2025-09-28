@@ -1,0 +1,52 @@
+[package]
+name = "rag-mcp-server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Core dependencies
+tokio = { version = "1.40", features = ["full"] }
+anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+serde_json = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# MCP server
+jsonrpc-core = "18.0"
+jsonrpc-derive = "18.0"
+jsonrpc-stdio-server = "18.0"
+jsonrpc-core-client = "18.0"
+
+# Document processing
+pdf-extract = "0.7"
+pulldown-cmark = "0.12"  # Markdown parsing
+tree-sitter = "0.24"     # Source code parsing
+tree-sitter-rust = "0.23"
+tree-sitter-python = "0.23"
+tree-sitter-javascript = "0.23"
+
+# NLP and embeddings (simplified - using placeholder for now)
+# candle-core = "0.7"      # For local embeddings - disabled due to compatibility issues
+# candle-transformers = "0.7"
+# tokenizers = "0.20"
+# hf-hub = "0.3"          # Download models
+
+# Graph database (embedded) - simplified storage
+# indradb = "4.0"         # Embedded graph database - disabled due to compatibility issues
+sled = "0.34"           # Embedded key-value store
+
+# Vector search (simplified)
+# hnsw = "0.11"           # HNSW vector index - using basic implementation
+ndarray = "0.16"
+
+# Text processing
+unicode-segmentation = "1.12"
+regex = "1.11"
+rayon = "1.10"         # Parallel processing
+uuid = { version = "1.10", features = ["v4"] }
+
+[dev-dependencies]
+tempfile = "3.13"
+criterion = "0.5"
