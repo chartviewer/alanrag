@@ -18,14 +18,14 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
     // Load configuration
-    let config = Config::from_file("alan_config.yaml")
-        .or_else(|_| Config::from_file("../alan_config.yaml"))
+    let config = Config::from_file("rag_config.yaml")
+        .or_else(|_| Config::from_file("../rag_config.yaml"))
         .unwrap_or_else(|e| {
             error!("Failed to load configuration: {}", e);
             std::process::exit(1);
         });
 
-    info!("Loaded configuration from alan_config.yaml");
+    info!("Loaded configuration from rag_config.yaml");
 
     // Create data directory if it doesn't exist
     std::fs::create_dir_all(&config.storage.data_dir)?;
