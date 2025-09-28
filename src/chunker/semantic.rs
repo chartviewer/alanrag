@@ -90,14 +90,21 @@ impl SemanticChunker {
                     chunks.push(chunk);
                 }
 
-                // Start new chunk with overlap
-                let overlap_start = current_chunk.len().saturating_sub(self.overlap_tokens);
-                current_chunk = current_chunk[overlap_start..].to_string();
-                start_pos = current_pos - (current_chunk.len() - overlap_start);
+                // Start new chunk with overlap (Unicode-safe)
+                let overlap_chars = self.overlap_tokens;
+                let chars: Vec<char> = current_chunk.chars().collect();
+                let overlap_start_chars = chars.len().saturating_sub(overlap_chars);
+
+                // Use character-based slicing instead of byte-based
+                current_chunk = chars[overlap_start_chars..].iter().collect::<String>();
+
+                // Calculate position based on character boundaries
+                let chars_before_overlap = chars.len() - current_chunk.chars().count();
+                start_pos = current_pos - (chars.len() - chars_before_overlap);
             }
 
             current_chunk.push_str(&sentence);
-            current_pos += sentence.len();
+            current_pos += sentence.chars().count(); // Use character count instead of byte length
         }
 
         // Add final chunk
@@ -278,35 +285,61 @@ impl SemanticChunker {
     }
 
     fn extract_function_name(code: &str) -> Option<String> {
-        // Extract the function/class name from the code chunk
+        // Extract the function/class name from the code chunk (Unicode-safe)
         for line in code.lines() {
             let trimmed = line.trim();
 
-            // Rust
+            // Rust - use safe substring extraction
             if let Some(pos) = trimmed.find("fn ") {
-                let name_part = &trimmed[pos + 3..];
-                if let Some(end) = name_part.find(|c: char| c == '(' || c == '<') {
-                    return Some(name_part[..end].trim().to_string());
+                if let Some(name_part) = Self::safe_substring(trimmed, pos + 3, None) {
+                    if let Some(end) = name_part.find(|c: char| c == '(' || c == '<') {
+                        if let Some(name) = Self::safe_substring(&name_part, 0, Some(end)) {
+                            return Some(name.trim().to_string());
+                        }
+                    }
                 }
             }
 
             // Python
             if let Some(pos) = trimmed.find("def ") {
-                let name_part = &trimmed[pos + 4..];
-                if let Some(end) = name_part.find('(') {
-                    return Some(name_part[..end].trim().to_string());
+                if let Some(name_part) = Self::safe_substring(trimmed, pos + 4, None) {
+                    if let Some(end) = name_part.find('(') {
+                        if let Some(name) = Self::safe_substring(&name_part, 0, Some(end)) {
+                            return Some(name.trim().to_string());
+                        }
+                    }
                 }
             }
 
             // Class definitions
             if let Some(pos) = trimmed.find("class ") {
-                let name_part = &trimmed[pos + 6..];
-                if let Some(end) = name_part.find(|c: char| c == ' ' || c == '{' || c == '(' || c == ':' || c == '<') {
-                    return Some(name_part[..end].trim().to_string());
+                if let Some(name_part) = Self::safe_substring(trimmed, pos + 6, None) {
+                    if let Some(end) = name_part.find(|c: char| c == ' ' || c == '{' || c == '(' || c == ':' || c == '<') {
+                        if let Some(name) = Self::safe_substring(&name_part, 0, Some(end)) {
+                            return Some(name.trim().to_string());
+                        }
+                    }
                 }
             }
         }
         None
+    }
+
+    /// Unicode-safe substring extraction using character indices
+    fn safe_substring(s: &str, start_chars: usize, end_chars: Option<usize>) -> Option<String> {
+        let chars: Vec<char> = s.chars().collect();
+
+        if start_chars >= chars.len() {
+            return None;
+        }
+
+        let end = end_chars.unwrap_or(chars.len()).min(chars.len());
+
+        if start_chars >= end {
+            return None;
+        }
+
+        Some(chars[start_chars..end].iter().collect())
     }
 
     fn split_sentences(&self, text: &str) -> Vec<String> {
