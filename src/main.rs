@@ -56,7 +56,7 @@ async fn main() -> Result<()> {
     let server_arc = Arc::new(server);
 
     info!("RAG MCP Server initialized successfully");
-    info!("Storage directory: {}", config.storage.data_dir.display());
+    info!("Storage directory: {}", config.storage.data_dir.canonicalize().unwrap_or(config.storage.data_dir).display());
     info!("Max chunk size: {}", config.storage.max_chunk_size);
     info!("Embedding model: {}", config.embedding.model_name);
 
