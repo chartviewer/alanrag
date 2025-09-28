@@ -6,6 +6,7 @@ pub struct HybridRetriever {
     vector_weight: f32,
     text_weight: f32,
     graph_weight: f32,
+    min_similarity_threshold: f32,  // Minimum similarity score to include results
 }
 
 impl HybridRetriever {
@@ -14,7 +15,13 @@ impl HybridRetriever {
             vector_weight,
             text_weight,
             graph_weight,
+            min_similarity_threshold: 0.3,  // Default threshold
         }
+    }
+
+    pub fn with_threshold(mut self, threshold: f32) -> Self {
+        self.min_similarity_threshold = threshold;
+        self
     }
 
     pub fn retrieve(
@@ -34,8 +41,12 @@ impl HybridRetriever {
         // Combine and rerank results
         let combined = self.combine_results(vector_results, text_results, graph);
 
-        // Take top-k
-        combined.into_iter().take(top_k).collect()
+        // Filter by similarity threshold and take top-k
+        combined
+            .into_iter()
+            .filter(|r| r.score >= self.min_similarity_threshold)
+            .take(top_k)
+            .collect()
     }
 
     fn combine_results(
@@ -90,6 +101,17 @@ impl HybridRetriever {
             .collect();
 
         final_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+
+        // Log low-quality matches for debugging
+        for result in &final_results {
+            if result.score < self.min_similarity_threshold {
+                eprintln!(
+                    "Low-quality match detected: chunk_id={}, score={:.3}",
+                    result.chunk_id, result.score
+                );
+            }
+        }
+
         final_results
     }
 }

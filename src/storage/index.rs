@@ -213,21 +213,43 @@ impl Storage {
     }
 
     fn text_similarity(&self, text: &str, query: &str) -> f32 {
+        // Enhanced text similarity with BM25-like scoring
         let text_lower = text.to_lowercase();
         let query_lower = query.to_lowercase();
 
-        // Simple keyword matching score
+        // Tokenize both text and query
+        let text_words: Vec<&str> = text_lower.split_whitespace().collect();
         let query_words: Vec<&str> = query_lower.split_whitespace().collect();
-        let matched_words = query_words
-            .iter()
-            .filter(|word| text_lower.contains(*word))
-            .count();
 
         if query_words.is_empty() {
-            0.0
-        } else {
-            matched_words as f32 / query_words.len() as f32
+            return 0.0;
         }
+
+        // Calculate term frequencies and match scores
+        let mut total_score = 0.0;
+        let k1 = 1.2; // BM25 parameter
+        let b = 0.75; // BM25 parameter
+        let avg_doc_length = 500.0; // Average document length in words
+        let doc_length = text_words.len() as f32;
+
+        for query_word in &query_words {
+            // Count occurrences of query word in text
+            let term_freq = text_words.iter().filter(|w| *w == query_word).count() as f32;
+
+            if term_freq > 0.0 {
+                // BM25 term frequency component
+                let tf_component = (term_freq * (k1 + 1.0)) /
+                    (term_freq + k1 * (1.0 - b + b * doc_length / avg_doc_length));
+
+                // IDF component (simplified - in production would use corpus statistics)
+                let idf = 1.0; // Simplified IDF
+
+                total_score += tf_component * idf;
+            }
+        }
+
+        // Normalize score
+        total_score / query_words.len() as f32
     }
 
     fn chunk_metadata_to_map(&self, metadata: &crate::chunker::ChunkMetadata) -> HashMap<String, String> {

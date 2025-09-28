@@ -33,7 +33,7 @@ pub struct McpServer {
 }
 
 impl McpServer {
-    pub fn new(config: Config) -> Result<Self> {
+    pub async fn new(config: Config) -> Result<Self> {
         let storage = Arc::new(RwLock::new(Storage::new(&config.storage.data_dir)?));
 
         let chunker = Arc::new(SemanticChunker::new(
@@ -46,10 +46,8 @@ impl McpServer {
             config.graph.similarity_threshold,
         )));
 
-        let embedder = Arc::new(EmbeddingModel::new(
-            &config.embedding.model_name,
-            config.embedding.dimension,
-        )?);
+        // Try to load a real transformer model, fall back to deterministic embeddings
+        let embedder = Arc::new(EmbeddingModel::new(&config.embedding.model_name).await?);
 
         Ok(Self {
             storage,

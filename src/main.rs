@@ -52,7 +52,7 @@ async fn main() -> Result<()> {
     std::fs::create_dir_all(&config.storage.data_dir)?;
 
     // Create MCP server
-    let server = McpServer::new(config.clone())?;
+    let server = McpServer::new(config.clone()).await?;
     let server_arc = Arc::new(server);
 
     info!("RAG MCP Server initialized successfully");

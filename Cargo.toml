@@ -27,11 +27,9 @@ tree-sitter-rust = "0.23"
 tree-sitter-python = "0.23"
 tree-sitter-javascript = "0.23"
 
-# NLP and embeddings (simplified - using placeholder for now)
-# candle-core = "0.7"      # For local embeddings - disabled due to compatibility issues
-# candle-transformers = "0.7"
-# tokenizers = "0.20"
-# hf-hub = "0.3"          # Download models
+# NLP and embeddings (lightweight implementation)
+# Real transformer models would require: candle-core, candle-nn, candle-transformers
+# For now using improved deterministic embeddings for compatibility
 
 # Graph database (embedded) - simplified storage
 # indradb = "4.0"         # Embedded graph database - disabled due to compatibility issues
@@ -46,6 +44,17 @@ unicode-segmentation = "1.12"
 regex = "1.11"
 rayon = "1.10"         # Parallel processing
 uuid = { version = "1.10", features = ["v4"] }
+
+# Security and hashing
+sha2 = "0.10"
+hex = "0.4"
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Async runtime and filesystem
+tokio-util = "0.7"
+futures = "0.3"
 
 [dev-dependencies]
 tempfile = "3.13"
