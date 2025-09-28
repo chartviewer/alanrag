@@ -1,4 +1,4 @@
-use jsonrpc_core::{IoHandler, Params, Value, Error as JsonRpcError};
+use jsonrpc_core::{Value, Error as JsonRpcError};
 use jsonrpc_derive::rpc;
 use std::sync::Arc;
 use tokio::sync::RwLock;
