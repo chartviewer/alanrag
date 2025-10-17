@@ -15,6 +15,8 @@ pub struct StorageConfig {
     pub data_dir: PathBuf,
     pub max_chunk_size: usize,
     pub min_chunk_size: usize,
+    #[serde(default)]
+    pub instance_id: Option<String>,  // Optional instance ID for multi-server setups
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

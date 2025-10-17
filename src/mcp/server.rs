@@ -34,6 +34,7 @@ pub struct McpServer {
 
 impl McpServer {
     pub async fn new(config: Config) -> Result<Self> {
+        // SQLite supports concurrent multi-process access, no instance_id needed
         let storage = Arc::new(Storage::new(&config.storage.data_dir)?);
 
         let chunker = Arc::new(SemanticChunker::new(

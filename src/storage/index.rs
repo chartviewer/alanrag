@@ -22,10 +22,36 @@ pub struct Storage {
 
 impl Storage {
     pub fn new(data_dir: &Path) -> Result<Self> {
-        std::fs::create_dir_all(data_dir)?;
+        Self::new_with_instance(data_dir, None)
+    }
 
-        let chunk_store = sled::open(data_dir.join("chunks"))?;
-        let metadata_store = sled::open(data_dir.join("metadata"))?;
+    pub fn new_with_instance(data_dir: &Path, instance_id: Option<&str>) -> Result<Self> {
+        // If instance_id is provided, create a subdirectory for this instance
+        // This allows multiple MCP servers to run with isolated databases
+        let effective_data_dir = if let Some(id) = instance_id {
+            data_dir.join(format!("instance_{}", id))
+        } else {
+            data_dir.to_path_buf()
+        };
+
+        std::fs::create_dir_all(&effective_data_dir)?;
+
+        // Sled doesn't support multi-process access to the same database directory.
+        // Each MCP server instance must have its own database directory.
+        let chunk_config = sled::Config::new()
+            .path(effective_data_dir.join("chunks"))
+            .flush_every_ms(Some(100))  // Auto-flush every 100ms for crash consistency
+            .cache_capacity(128 * 1024 * 1024);  // 128MB cache for better performance
+
+        let metadata_config = sled::Config::new()
+            .path(effective_data_dir.join("metadata"))
+            .flush_every_ms(Some(100))
+            .cache_capacity(32 * 1024 * 1024);  // 32MB cache
+
+        let chunk_store = chunk_config.open()
+            .map_err(|e| anyhow!("Failed to open chunk store at {:?}: {}. Is another instance already running with the same data_dir?", effective_data_dir.join("chunks"), e))?;
+        let metadata_store = metadata_config.open()
+            .map_err(|e| anyhow!("Failed to open metadata store at {:?}: {}. Is another instance already running with the same data_dir?", effective_data_dir.join("metadata"), e))?;
 
         // Load existing embeddings from disk into memory cache
         let mut embeddings = HashMap::new();
@@ -46,7 +72,7 @@ impl Storage {
             chunk_store,
             metadata_store,
             embeddings: Arc::new(RwLock::new(embeddings)),
-            data_dir: data_dir.to_path_buf(),
+            data_dir: effective_data_dir,
         })
     }
 

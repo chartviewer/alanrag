@@ -31,13 +31,16 @@ async fn main() -> Result<()> {
         }
     }
 
+    // Support custom config file via environment variable or command line argument
+    let config_file = std::env::var("RAG_CONFIG").unwrap_or_else(|_| "rag_config.yaml".to_string());
+
     // Load configuration
-    let config = Config::from_file("rag_config.yaml")
+    let config = Config::from_file(&config_file)
         .or_else(|e| {
-            let abs_path = std::fs::canonicalize("rag_config.yaml").unwrap_or_else(|_| {
-                std::env::current_dir().unwrap_or_else(|_| ".".into()).join("rag_config.yaml")
+            let abs_path = std::fs::canonicalize(&config_file).unwrap_or_else(|_| {
+                std::env::current_dir().unwrap_or_else(|_| ".".into()).join(&config_file)
             });
-            error!("Failed to load rag_config.yaml: {} (absolute path: {})", e, abs_path.display());
+            error!("Failed to load {}: {} (absolute path: {})", config_file, e, abs_path.display());
             Config::from_file("../rag_config.yaml")
         })
         .unwrap_or_else(|e| {
@@ -46,7 +49,10 @@ async fn main() -> Result<()> {
             std::process::exit(1);
         });
 
-    info!("Loaded configuration from rag_config.yaml");
+    info!("Loaded configuration from {}", config_file);
+    if let Some(instance_id) = &config.storage.instance_id {
+        info!("Running as instance: {}", instance_id);
+    }
 
     // Create data directory if it doesn't exist
     std::fs::create_dir_all(&config.storage.data_dir)?;
