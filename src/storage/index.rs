@@ -2,6 +2,7 @@ use crate::chunker::Chunk;
 use anyhow::{Result, anyhow};
 use std::path::Path;
 use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -15,7 +16,7 @@ pub struct SearchResult {
 pub struct Storage {
     chunk_store: sled::Db,
     metadata_store: sled::Db,
-    embeddings: HashMap<String, Vec<f32>>, // In-memory for now
+    embeddings: Arc<RwLock<HashMap<String, Vec<f32>>>>, // Thread-safe in-memory cache
     data_dir: std::path::PathBuf,
 }
 
@@ -26,15 +27,30 @@ impl Storage {
         let chunk_store = sled::open(data_dir.join("chunks"))?;
         let metadata_store = sled::open(data_dir.join("metadata"))?;
 
+        // Load existing embeddings from disk into memory cache
+        let mut embeddings = HashMap::new();
+        for chunk_result in chunk_store.iter() {
+            if let Ok((chunk_id, chunk_data)) = chunk_result {
+                if let Ok(chunk) = serde_json::from_slice::<Chunk>(&chunk_data) {
+                    if !chunk.embedding.is_empty() {
+                        embeddings.insert(
+                            String::from_utf8_lossy(&chunk_id).to_string(),
+                            chunk.embedding.clone()
+                        );
+                    }
+                }
+            }
+        }
+
         Ok(Self {
             chunk_store,
             metadata_store,
-            embeddings: HashMap::new(),
+            embeddings: Arc::new(RwLock::new(embeddings)),
             data_dir: data_dir.to_path_buf(),
         })
     }
 
-    pub fn store_chunk(&mut self, chunk: &Chunk) -> Result<()> {
+    pub fn store_chunk(&self, chunk: &Chunk) -> Result<()> {
         // Store chunk content
         let chunk_data = serde_json::to_vec(chunk)?;
         self.chunk_store.insert(&chunk.id, chunk_data)?;
@@ -43,13 +59,14 @@ impl Storage {
         let metadata = serde_json::to_vec(&chunk.metadata)?;
         self.metadata_store.insert(&chunk.id, metadata)?;
 
-        // Store embedding in memory
+        // Store embedding in memory cache (thread-safe)
         if !chunk.embedding.is_empty() {
-            self.embeddings.insert(chunk.id.clone(), chunk.embedding.clone());
+            let mut embeddings = self.embeddings.write().unwrap();
+            embeddings.insert(chunk.id.clone(), chunk.embedding.clone());
         }
 
-        self.chunk_store.flush()?;
-        self.metadata_store.flush()?;
+        // Sled handles its own flushing, no need to call flush explicitly
+        // This improves performance and reduces lock contention
 
         Ok(())
     }
@@ -66,10 +83,13 @@ impl Storage {
     pub fn search_similar(&self, query_embedding: &[f32], top_k: usize) -> Vec<SearchResult> {
         let mut similarities = Vec::new();
 
-        for (chunk_id, embedding) in &self.embeddings {
+        // Read lock on embeddings cache for concurrent access
+        let embeddings = self.embeddings.read().unwrap();
+        for (chunk_id, embedding) in embeddings.iter() {
             let similarity = self.cosine_similarity(query_embedding, embedding);
             similarities.push((chunk_id.clone(), similarity));
         }
+        drop(embeddings); // Release read lock early
 
         // Sort by similarity (descending)
         similarities.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));

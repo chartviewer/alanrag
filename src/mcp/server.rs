@@ -25,7 +25,7 @@ pub trait RagMcp {
 
 #[derive(Clone)]
 pub struct McpServer {
-    storage: Arc<RwLock<Storage>>,
+    storage: Arc<Storage>, // Storage is now thread-safe internally
     chunker: Arc<SemanticChunker>,
     graph: Arc<RwLock<GraphBuilder>>,
     embedder: Arc<EmbeddingModel>,
@@ -34,7 +34,7 @@ pub struct McpServer {
 
 impl McpServer {
     pub async fn new(config: Config) -> Result<Self> {
-        let storage = Arc::new(RwLock::new(Storage::new(&config.storage.data_dir)?));
+        let storage = Arc::new(Storage::new(&config.storage.data_dir)?);
 
         let chunker = Arc::new(SemanticChunker::new(
             config.storage.max_chunk_size,
@@ -96,13 +96,10 @@ impl McpServer {
             chunk.embedding = embedding;
         }
 
-        // Store chunks
+        // Store chunks (Storage is now thread-safe, no need for write lock)
         let chunk_count = chunks.len();
-        {
-            let mut storage = self.storage.write().await;
-            for chunk in &chunks {
-                storage.store_chunk(chunk)?;
-            }
+        for chunk in &chunks {
+            self.storage.store_chunk(chunk)?;
         }
 
         // Build graph relationships
@@ -118,13 +115,12 @@ impl McpServer {
         // Generate query embedding
         let query_embedding = self.embedder.embed_text(query)?;
 
-        // Search for similar chunks
-        let storage = self.storage.read().await;
-        let mut results = storage.search_similar(&query_embedding, top_k * 2); // Get more for reranking
+        // Search for similar chunks (Storage is now thread-safe)
+        let mut results = self.storage.search_similar(&query_embedding, top_k * 2); // Get more for reranking
 
         // If vector search doesn't find enough results, fallback to text search
         if results.len() < top_k {
-            let mut text_results = storage.search_by_text(query, top_k);
+            let mut text_results = self.storage.search_by_text(query, top_k);
             results.append(&mut text_results);
 
             // Remove duplicates and sort by score
