@@ -223,11 +223,10 @@ pub fn create_rpc_handler(server: Arc<McpServer>) -> IoHandler {
 
 pub async fn start_mcp_server(server: Arc<McpServer>) -> anyhow::Result<()> {
     use tokio::io::{stdin, stdout, AsyncBufReadExt, AsyncWriteExt, BufReader};
-    use std::io::Write;
 
     let io = create_rpc_handler(server);
 
-    tracing::info!("MCP server starting on stdio");
+    tracing::info!("MCP server ready - waiting for JSON-RPC requests on stdin");
 
     // Custom stdio handling to avoid extra newlines
     let stdin = stdin();
@@ -237,9 +236,16 @@ pub async fn start_mcp_server(server: Arc<McpServer>) -> anyhow::Result<()> {
 
     loop {
         line.clear();
-        let bytes_read = reader.read_line(&mut line).await?;
+        let bytes_read = match reader.read_line(&mut line).await {
+            Ok(n) => n,
+            Err(e) => {
+                tracing::error!("Error reading from stdin: {}", e);
+                break;
+            }
+        };
 
         if bytes_read == 0 {
+            tracing::info!("stdin closed (EOF) - shutting down gracefully");
             break; // EOF
         }
 
@@ -266,5 +272,6 @@ pub async fn start_mcp_server(server: Arc<McpServer>) -> anyhow::Result<()> {
         }
     }
 
+    tracing::info!("MCP server shutdown complete");
     Ok(())
 }
